@@ -13,6 +13,7 @@ RC.PubSub = new (function() {
 	var transition_command_publisher;
 	var autonomy_level_publisher;
 	var preempt_behavior_publisher;
+	var restart_engine_publisher;
 	var lock_behavior_publisher;
 	var unlock_behavior_publisher;
 	var sync_mirror_publisher;
@@ -75,7 +76,7 @@ RC.PubSub = new (function() {
 			T.logInfo("Please press 'Stop Execution' next time before closing this window when running a behavior.");
 		}
 
-		if (RC.Controller.isLocked() && msg.code == STARTED && msg.args.length > 0 
+		if (RC.Controller.isLocked() && msg.code == STARTED && msg.args.length > 0
 			&& RC.Controller.isCurrentState(Behavior.getStatemachine().getStateByPath(msg.args[0]), false)) {
 
 			RC.Sync.remove("Switch");
@@ -256,7 +257,7 @@ RC.PubSub = new (function() {
 		var root_split = root.split("/");
 		var root_name = root_split[root_split.length - 1];
 		var root_container_path = root.replace("/" + root_name, "");
-		var root_container = (root_container_path == "")? Behavior.getStatemachine() : 
+		var root_container = (root_container_path == "")? Behavior.getStatemachine() :
 								Behavior.getStatemachine().getStateByPath(root_container_path);
 		var root_varname = "";
 		var defs = IO.ModelGenerator.parseInstantiationMsg(result.states);
@@ -369,6 +370,10 @@ RC.PubSub = new (function() {
 			ns + 'flexbe/command/preempt',
 			'std_msgs/Empty');
 
+		restart_engine_publisher = new ROS.Publisher(
+		    ns + 'flexbe/restart_engine',
+			'std_msgs/Empty');
+
 		lock_behavior_publisher = new ROS.Publisher(
 			ns + 'flexbe/command/lock',
 			'std_msgs/String');
@@ -393,7 +398,7 @@ RC.PubSub = new (function() {
 			ns + 'flexbe/command/pause',
 			'std_msgs/Bool');
 
-		ros_notification_publisher = new ROS.Publisher( 
+		ros_notification_publisher = new ROS.Publisher(
 			ns + 'flexbe/uinotification',
 			'std_msgs/String');
 
@@ -432,6 +437,7 @@ RC.PubSub = new (function() {
 		if (transition_command_publisher) transition_command_publisher.close();
 		if (autonomy_level_publisher) autonomy_level_publisher.close();
 		if (preempt_behavior_publisher) preempt_behavior_publisher.close();
+		if (restart_engine_publisher) restart_engine_publisher.close();
 		if (lock_behavior_publisher) lock_behavior_publisher.close();
 		if (unlock_behavior_publisher) unlock_behavior_publisher.close();
 		if (sync_mirror_publisher) sync_mirror_publisher.close();
@@ -455,7 +461,7 @@ RC.PubSub = new (function() {
 			try {
 				behavior_structure = Behavior.createStructureInfo();
 			} catch (error) {
-				T.logError("Failed to construct behavior structure, execution might fail: " + error);	
+				T.logError("Failed to construct behavior structure, execution might fail: " + error);
 			}
 
 			// request start
@@ -560,6 +566,15 @@ RC.PubSub = new (function() {
 		preempt_behavior_publisher.publish();
 	}
 
+	this.sendRestartEngine = function() {
+		if (restart_engine_publisher == undefined) { T.debugWarn("ROS not initialized!"); return; }
+		if (RC.Controller.isConnected()) {
+			RC.Sync.register("Preempt", 60);
+			RC.Sync.setProgress("Preempt", 0.2, false);
+		}
+		restart_engine_publisher.publish();
+	}
+
 	this.sendBehaviorLock = function(path) {
 		if (lock_behavior_publisher == undefined) { T.debugWarn("ROS not initialized!"); return; }
 		if (!RC.Controller.isActive()) return;
@@ -592,7 +607,7 @@ RC.PubSub = new (function() {
 
 	this.sendRosNotification = function(cmd) {
 		if (ros_notification_publisher == undefined) { T.debugWarn("ROS not initialized!"); return; }
-		
+
 		ros_notification_publisher.publish({
 			data: cmd
 		});
